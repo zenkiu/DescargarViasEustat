@@ -440,6 +440,131 @@
   ::-webkit-scrollbar { width: 5px; height: 5px; }
   ::-webkit-scrollbar-track { background: var(--surface); }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* ── Case modal ─────────────────────────────────────────────────────────── */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.72);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(4px);
+  }
+  .modal-overlay.open { display: flex; }
+
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 32px 36px;
+    max-width: 480px;
+    width: 90%;
+    box-shadow: 0 24px 80px rgba(0,0,0,0.6);
+    animation: modalIn 0.2s ease;
+  }
+
+  @keyframes modalIn {
+    from { transform: translateY(12px) scale(0.97); opacity: 0; }
+    to   { transform: translateY(0) scale(1); opacity: 1; }
+  }
+
+  .modal-title {
+    font-family: var(--serif);
+    font-weight: 300;
+    font-size: 1.35rem;
+    letter-spacing: -0.01em;
+    margin-bottom: 6px;
+    color: var(--text);
+  }
+
+  .modal-sub {
+    font-size: 0.72rem;
+    color: var(--muted);
+    margin-bottom: 24px;
+    line-height: 1.5;
+  }
+
+  .modal-sub em { color: var(--accent2); font-style: normal; }
+
+  .case-options {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 28px;
+  }
+
+  .case-option {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 14px 16px;
+    cursor: pointer;
+    transition: all 0.18s;
+    position: relative;
+  }
+
+  .case-option:hover { border-color: var(--muted); }
+
+  .case-option input[type=radio] { display: none; }
+
+  .case-option.selected {
+    border-color: var(--accent);
+    background: rgba(123,255,160,0.06);
+  }
+
+  .case-radio {
+    width: 16px;
+    height: 16px;
+    border: 1.5px solid var(--muted);
+    border-radius: 50%;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.18s;
+  }
+
+  .case-option.selected .case-radio {
+    border-color: var(--accent);
+    background: var(--accent);
+  }
+
+  .case-option.selected .case-radio::after {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #0d0f14;
+  }
+
+  .case-info { flex: 1; }
+
+  .case-label {
+    font-size: 0.82rem;
+    color: var(--text);
+    margin-bottom: 3px;
+    font-weight: 500;
+  }
+
+  .case-example {
+    font-size: 0.68rem;
+    color: var(--muted);
+    font-family: var(--mono);
+  }
+
+  .case-example span { color: var(--accent2); }
+
+  .modal-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+  }
+
 </style>
 </head>
 <body>
@@ -538,6 +663,59 @@
     <span>UTM → WGS84 · Latitud/Longitud decimal · ETRS89 / proj4js</span>
     <span id="footerFile">Sin fichero cargado</span>
   </footer>
+  <!-- Case conversion modal -->
+  <div class="modal-overlay" id="caseModal">
+    <div class="modal">
+      <p class="modal-title">Formato del nombre de calle</p>
+      <p class="modal-sub">¿Cómo quieres exportar los campos <em>TIPO VIA</em> y <em>VIA</em>?</p>
+
+      <div class="case-options" id="caseOptions">
+
+        <label class="case-option selected" id="opt-upper">
+          <input type="radio" name="caseMode" value="upper" checked>
+          <div class="case-radio"></div>
+          <div class="case-info">
+            <div class="case-label">MAYÚSCULAS</div>
+            <div class="case-example">CALLE ESTANISLAO LABAIRU → <span>CALLE ESTANISLAO LABAIRU</span></div>
+          </div>
+        </label>
+
+        <label class="case-option" id="opt-lower">
+          <input type="radio" name="caseMode" value="lower">
+          <div class="case-radio"></div>
+          <div class="case-info">
+            <div class="case-label">minúsculas</div>
+            <div class="case-example">CALLE ESTANISLAO LABAIRU → <span>calle estanislao labairu</span></div>
+          </div>
+        </label>
+
+        <label class="case-option" id="opt-title">
+          <input type="radio" name="caseMode" value="title">
+          <div class="case-radio"></div>
+          <div class="case-info">
+            <div class="case-label">Primera letra en Mayúscula</div>
+            <div class="case-example">CALLE ESTANISLAO LABAIRU → <span>Calle Estanislao Labairu</span></div>
+          </div>
+        </label>
+
+        <label class="case-option" id="opt-none">
+          <input type="radio" name="caseMode" value="none">
+          <div class="case-radio"></div>
+          <div class="case-info">
+            <div class="case-label">Sin cambios</div>
+            <div class="case-example">Tal como viene en el fichero original</div>
+          </div>
+        </label>
+
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn btn-danger"   id="modalCancelBtn">Cancelar</button>
+        <button class="btn btn-primary"  id="modalConfirmBtn">▶ Convertir</button>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <script>
@@ -654,9 +832,48 @@ document.getElementById('reloadBtn').addEventListener('click', () => {
 });
 
 // ── Conversion ────────────────────────────────────────────────────────────────
-document.getElementById('convertBtn').addEventListener('click', doConversion);
+let pendingCaseMode = 'upper';
 
-function doConversion() {
+// Case option click highlighting
+document.querySelectorAll('.case-option').forEach(opt => {
+  opt.addEventListener('click', () => {
+    document.querySelectorAll('.case-option').forEach(o => o.classList.remove('selected'));
+    opt.classList.add('selected');
+    pendingCaseMode = opt.querySelector('input[type=radio]').value;
+  });
+});
+
+// Convert button → open modal
+document.getElementById('convertBtn').addEventListener('click', () => {
+  document.getElementById('caseModal').classList.add('open');
+});
+
+// Modal cancel
+document.getElementById('modalCancelBtn').addEventListener('click', () => {
+  document.getElementById('caseModal').classList.remove('open');
+});
+
+// Click outside modal to close
+document.getElementById('caseModal').addEventListener('click', function(e) {
+  if (e.target === this) this.classList.remove('open');
+});
+
+// Modal confirm → run conversion
+document.getElementById('modalConfirmBtn').addEventListener('click', () => {
+  document.getElementById('caseModal').classList.remove('open');
+  doConversion(pendingCaseMode);
+});
+
+function applyCase(str, mode) {
+  const s = String(str);
+  if (mode === 'upper') return s.toUpperCase();
+  if (mode === 'lower') return s.toLowerCase();
+  if (mode === 'title') return s.toLowerCase().replace(/(?:^|\s|-)\S/g, ch => ch.toUpperCase());
+  return s; // none
+}
+
+function doConversion(caseMode) {
+  caseMode = caseMode || 'none';
   const crsKey = document.getElementById('crsSelect').value;
   proj4.defs('SRC', PROJ_DEFS[crsKey]);
   const conv = proj4('SRC', WGS84);
@@ -703,12 +920,14 @@ function doConversion() {
       } catch(e) { status = 'error'; errMsg = e.message; errCount++; }
     }
 
+    const TEXT_COLS = ['TIPO VIA', 'VIA'];
     const out = OUTPUT_COLS.map(col => {
       if (col.src === '__LAT__') return lat;
       if (col.src === '__LON__') return lon;
       if (col.src === null)      return '';
       const ci = idx[col.src];
-      return ci !== undefined ? row[ci] : '';
+      const val = ci !== undefined ? row[ci] : '';
+      return TEXT_COLS.includes(col.name) ? applyCase(val, caseMode) : val;
     });
 
     convertedRows.push({ out, status, errMsg });
