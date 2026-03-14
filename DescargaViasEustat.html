@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Conversor Callejero · Portales/Direcciones</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,wght@0,300;0,600;1,300&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.0/proj4.js"></script>
+<style>
+  :root {
+    --bg: #0d0f14;
+    --surface: #13161e;
+    --surface2: #1a1e2a;
+    --border: #252a38;
+    --accent: #7bffa0;
+    --accent2: #4ec9f0;
+    --accent3: #ff6b6b;
+    --text: #e8ecf4;
+    --muted: #5a6278;
+    --mono: 'DM Mono', monospace;
+    --serif: 'Fraunces', serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(123,255,160,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(123,255,160,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 40px 24px;
+    position: relative;
+    z-index: 1;
+  }
+
+  header {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    margin-bottom: 36px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 24px;
+    flex-wrap: wrap;
+  }
+
+  h1 {
+    font-family: var(--serif);
+    font-weight: 300;
+    font-size: 2rem;
+    letter-spacing: -0.02em;
+    color: var(--text);
+  }
+
+  h1 em { font-style: italic; color: var(--accent); }
+
+  .badge {
+    font-size: 0.65rem;
+    font-family: var(--mono);
+    letter-spacing: 0.12em;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    padding: 4px 10px;
+    border-radius: 2px;
+    text-transform: uppercase;
+    align-self: center;
+  }
+
+  .eustat-banner {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent2);
+    border-radius: 6px;
+    padding: 14px 20px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .eustat-step {
+    font-size: 0.62rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent2);
+    white-space: nowrap;
+    font-weight: 500;
+  }
+
+  .eustat-desc {
+    font-size: 0.73rem;
+    color: var(--muted);
+    flex: 1;
+    min-width: 180px;
+    line-height: 1.5;
+  }
+
+  .eustat-desc strong { color: var(--text); font-weight: 500; }
+
+  .btn-eustat {
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    letter-spacing: 0.06em;
+    padding: 9px 18px;
+    border: 1px solid var(--accent2);
+    border-radius: 4px;
+    cursor: pointer;
+    background: rgba(78,201,240,0.08);
+    color: var(--accent2);
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    transition: all 0.2s;
+    white-space: nowrap;
+    text-transform: uppercase;
+  }
+  .btn-eustat:hover {
+    background: rgba(78,201,240,0.18);
+    color: #fff;
+  }
+
+  .crs-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 16px 20px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .crs-label {
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .crs-select {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    padding: 8px 14px;
+    border-radius: 4px;
+    outline: none;
+    cursor: pointer;
+    flex: 1;
+    min-width: 260px;
+    transition: border-color 0.2s;
+  }
+  .crs-select:focus { border-color: var(--accent); }
+
+  .upload-zone {
+    border: 2px dashed var(--border);
+    border-radius: 8px;
+    padding: 48px 32px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.25s;
+    margin-bottom: 20px;
+    background: var(--surface);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .upload-zone::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 50% 50%, rgba(123,255,160,0.05) 0%, transparent 70%);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  .upload-zone:hover, .upload-zone.drag-over { border-color: var(--accent); background: var(--surface2); }
+  .upload-zone:hover::after, .upload-zone.drag-over::after { opacity: 1; }
+
+  .upload-icon { font-size: 2.2rem; margin-bottom: 12px; display: block; }
+  .upload-title { font-family: var(--serif); font-size: 1.2rem; font-weight: 300; margin-bottom: 6px; }
+  .upload-sub { font-size: 0.72rem; color: var(--muted); }
+  .upload-sub span { color: var(--accent); }
+
+  #fileInput { display: none; }
+
+  .mapping-panel {
+    display: none;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 18px 22px;
+    margin-bottom: 20px;
+  }
+  .mapping-panel.visible { display: block; }
+
+  .mapping-title {
+    font-size: 0.68rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 14px;
+  }
+
+  .mapping-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    gap: 8px;
+  }
+
+  .mapping-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 8px 12px;
+  }
+
+  .map-target {
+    font-size: 0.68rem;
+    letter-spacing: 0.06em;
+    color: var(--accent2);
+    min-width: 105px;
+    font-weight: 500;
+  }
+
+  .map-arrow { color: var(--muted); font-size: 0.75rem; }
+
+  .map-source { font-size: 0.7rem; color: var(--text); }
+  .map-source.missing { color: rgba(255,107,107,0.6); font-style: italic; }
+  .map-source.computed { color: var(--accent); font-style: italic; }
+
+  .row-config {
+    display: flex;
+    gap: 14px;
+    margin-top: 14px;
+    align-items: center;
+    flex-wrap: wrap;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+  }
+
+  .row-config label { font-size: 0.72rem; color: var(--muted); }
+
+  .row-config input {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    padding: 6px 10px;
+    border-radius: 4px;
+    width: 64px;
+    outline: none;
+    text-align: center;
+    transition: border-color 0.2s;
+  }
+  .row-config input:focus { border-color: var(--accent); }
+
+  .actions {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+
+  .btn {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    letter-spacing: 0.06em;
+    padding: 11px 22px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .btn-primary { background: var(--accent); color: #0d0f14; border-color: var(--accent); font-weight: 500; }
+  .btn-primary:hover { background: #5de085; }
+  .btn-primary:disabled { background: var(--border); border-color: var(--border); color: var(--muted); cursor: not-allowed; }
+
+  .btn-secondary { background: transparent; color: var(--accent2); border-color: var(--border); }
+  .btn-secondary:hover { border-color: var(--accent2); background: rgba(78,201,240,0.07); }
+  .btn-secondary:disabled { color: var(--muted); border-color: var(--border); cursor: not-allowed; }
+
+  .btn-danger { background: transparent; color: var(--accent3); border-color: var(--border); }
+  .btn-danger:hover { border-color: var(--accent3); background: rgba(255,107,107,0.07); }
+
+  .stats-bar {
+    display: none;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 14px 20px;
+    margin-bottom: 18px;
+    gap: 28px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .stats-bar.visible { display: flex; }
+
+  .stat { display: flex; flex-direction: column; gap: 3px; }
+  .stat-val { font-size: 1.4rem; font-family: var(--serif); font-weight: 300; color: var(--accent); }
+  .stat-lbl { font-size: 0.63rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+
+  .progress-wrap { flex: 1; min-width: 180px; display: flex; flex-direction: column; gap: 6px; }
+  .progress-bar { height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    border-radius: 2px;
+    transition: width 0.3s;
+    width: 0%;
+  }
+  .progress-txt { font-size: 0.63rem; color: var(--muted); }
+
+  .output-preview {
+    display: none;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .output-preview.visible { display: block; }
+
+  .preview-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .preview-title { font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+  .preview-note { font-size: 0.68rem; color: var(--accent); }
+
+  .table-search {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    padding: 6px 12px;
+    border-radius: 4px;
+    outline: none;
+    width: 190px;
+    transition: border-color 0.2s;
+  }
+  .table-search:focus { border-color: var(--accent); }
+
+  .table-scroll { overflow-x: auto; max-height: 460px; overflow-y: auto; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 0.73rem; }
+
+  thead { position: sticky; top: 0; z-index: 2; background: var(--surface2); }
+
+  th {
+    padding: 9px 14px;
+    text-align: left;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    font-size: 0.61rem;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+    font-weight: 500;
+  }
+  th.col-coord { color: var(--accent); }
+
+  td {
+    padding: 8px 14px;
+    border-bottom: 1px solid rgba(37,42,56,0.5);
+    white-space: nowrap;
+    color: var(--text);
+  }
+
+  td.coord { color: var(--accent); font-variant-numeric: tabular-nums; }
+  tr:hover td { background: rgba(123,255,160,0.025); }
+  tr.row-err td { color: rgba(255,107,107,0.7); }
+
+  .tag-ok { background: rgba(123,255,160,0.12); color: var(--accent); padding: 2px 7px; border-radius: 2px; font-size: 0.63rem; }
+  .tag-err { background: rgba(255,107,107,0.12); color: var(--accent3); padding: 2px 7px; border-radius: 2px; font-size: 0.63rem; }
+
+  .error-bubble {
+    display: none;
+    background: rgba(255,107,107,0.08);
+    border: 1px solid rgba(255,107,107,0.3);
+    border-radius: 6px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    font-size: 0.75rem;
+    color: var(--accent3);
+  }
+  .error-bubble.visible { display: block; }
+
+  footer {
+    margin-top: 40px;
+    padding-top: 18px;
+    border-top: 1px solid var(--border);
+    font-size: 0.63rem;
+    color: var(--muted);
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: var(--surface); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <h1>Conversor <em>Portales / Direcciones</em></h1>
+    <span class="badge">Callejero → Importación</span>
+  </header>
+
+  <!-- EUSTAT download banner -->
+  <div class="eustat-banner">
+    <span class="eustat-step">Paso 1</span>
+    <span class="eustat-desc">
+      <strong>Descarga el Callejero desde EUSTAT</strong> — Selecciona Bizkaia / Durango y descarga el fichero Excel (.xlsx).
+      Después cárgalo aquí abajo para convertir las coordenadas.
+    </span>
+    <a class="btn-eustat" href="https://es.eustat.eus/productosServicios/idioma_c/kale_formu.html" target="_blank" rel="noopener">
+      ↗ Abrir EUSTAT · Callejero
+    </a>
+  </div>
+
+  <div class="crs-panel">
+    <span class="crs-label">CRS origen</span>
+    <select class="crs-select" id="crsSelect">
+      <option value="EPSG:25830" selected>EPSG:25830 — ETRS89 / UTM zona 30N (España peninsular · Bizkaia)</option>
+      <option value="EPSG:25829">EPSG:25829 — ETRS89 / UTM zona 29N</option>
+      <option value="EPSG:25831">EPSG:25831 — ETRS89 / UTM zona 31N</option>
+      <option value="EPSG:23030">EPSG:23030 — ED50 / UTM zona 30N (antiguo)</option>
+      <option value="EPSG:32630">EPSG:32630 — WGS84 / UTM zona 30N</option>
+    </select>
+  </div>
+
+  <div class="upload-zone" id="uploadZone">
+    <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
+    <span class="upload-icon">⌗</span>
+    <p class="upload-title"><span style="color:var(--accent2);font-size:0.7rem;letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:4px">Paso 2</span>Arrastra el Callejero aquí o haz clic para seleccionar</p>
+    <p class="upload-sub">Soporta <span>.xlsx</span> · <span>.xls</span> · <span>.csv</span></p>
+  </div>
+
+  <div class="error-bubble" id="errorBubble"></div>
+
+  <div class="mapping-panel" id="mappingPanel">
+    <p class="mapping-title">⇄ Correspondencia de columnas — Callejero → campos de importación</p>
+    <div class="mapping-grid" id="mappingGrid"></div>
+    <div class="row-config">
+      <label>Fila cabecera:</label>
+      <input type="number" id="headerRow" value="2" min="1" max="20">
+      <label>Fila inicio datos:</label>
+      <input type="number" id="dataRow" value="3" min="1" max="100">
+      <button class="btn btn-secondary" id="reloadBtn" style="margin-left:4px">↺ Redetectar</button>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="btn btn-primary"   id="convertBtn"    disabled>▶ Convertir y Preparar</button>
+    <button class="btn btn-secondary" id="exportXlsxBtn" disabled>⬇ Exportar XLSX para importar</button>
+    <button class="btn btn-secondary" id="exportCsvBtn"  disabled>⬇ Exportar CSV</button>
+    <button class="btn btn-danger"    id="resetBtn">✕ Limpiar</button>
+  </div>
+
+  <div class="stats-bar" id="statsBar">
+    <div class="stat">
+      <span class="stat-val" id="statTotal">0</span>
+      <span class="stat-lbl">Filas totales</span>
+    </div>
+    <div class="stat">
+      <span class="stat-val" id="statOk">0</span>
+      <span class="stat-lbl">Convertidas ✓</span>
+    </div>
+    <div class="stat">
+      <span class="stat-val" id="statErr" style="color:var(--accent3)">0</span>
+      <span class="stat-lbl">Errores</span>
+    </div>
+    <div class="progress-wrap">
+      <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+      <span class="progress-txt" id="progressTxt">—</span>
+    </div>
+  </div>
+
+  <div class="output-preview" id="tableWrap">
+    <div class="preview-header">
+      <span class="preview-title">Vista previa — columnas de importación</span>
+      <span class="preview-note" id="previewNote"></span>
+      <input type="text" class="table-search" id="tableSearch" placeholder="Filtrar...">
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead id="tableHead"></thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <footer>
+    <span>UTM → WGS84 · Latitud/Longitud decimal · ETRS89 / proj4js</span>
+    <span id="footerFile">Sin fichero cargado</span>
+  </footer>
+</div>
+
+<script>
+const PROJ_DEFS = {
+  'EPSG:25830': '+proj=utm +zone=30 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs',
+  'EPSG:25829': '+proj=utm +zone=29 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs',
+  'EPSG:25831': '+proj=utm +zone=31 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs',
+  'EPSG:23030': '+proj=utm +zone=30 +ellps=intl +towgs84=-87,-98,-121,0,0,0,0 +units=m +no_defs',
+  'EPSG:32630': '+proj=utm +zone=30 +datum=WGS84 +units=m +no_defs',
+};
+const WGS84 = '+proj=longlat +datum=WGS84 +no_defs';
+
+// Output columns = exact import field names in order
+// src: name of column in source file, or '__LAT__'/'__LON__' for computed, or null for blank
+const OUTPUT_COLS = [
+  { name: 'TIPO VIA',      src: 'Vía' },
+  { name: 'VIA',           src: 'Calle' },
+  { name: 'CODIGO POSTAL', src: 'Cod.Postal' },
+  { name: 'CODIGO INE',    src: null },
+  { name: 'PORTAL',        src: 'Número' },
+  { name: 'LETRA',         src: 'Bis' },
+  { name: 'BLOQUE',        src: 'Bloque' },
+  { name: 'ESCALERA',      src: null },
+  { name: 'PLANTA',        src: null },
+  { name: 'MANO',          src: null },
+  { name: 'PUERTA',        src: null },
+  { name: 'LATITUD',       src: '__LAT__' },
+  { name: 'LONGITUD',      src: '__LON__' },
+];
+
+let rawData = [], srcHeaders = [], convertedRows = [], fileName = '', fileLoaded = false;
+
+// ── Upload ────────────────────────────────────────────────────────────────────
+const uploadZone = document.getElementById('uploadZone');
+const fileInput  = document.getElementById('fileInput');
+
+uploadZone.addEventListener('click', () => fileInput.click());
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault(); uploadZone.classList.remove('drag-over');
+  if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
+
+function handleFile(file) {
+  fileName = file.name;
+  document.getElementById('footerFile').textContent = fileName;
+  const ext = file.name.split('.').pop().toLowerCase();
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = ext === 'csv'
+        ? XLSX.read(e.target.result, { type: 'string' })
+        : XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+      rawData = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' });
+      fileLoaded = true;
+      autoDetectAndSetup();
+    } catch (err) { showError('Error leyendo el fichero: ' + err.message); }
+  };
+  ext === 'csv' ? reader.readAsText(file) : reader.readAsArrayBuffer(file);
+}
+
+function autoDetectAndSetup() {
+  let hRow = 0;
+  for (let i = 0; i < Math.min(rawData.length, 10); i++) {
+    if (rawData[i].filter(c => c !== '' && c !== null && c !== undefined).length >= 4) {
+      hRow = i; break;
+    }
+  }
+  document.getElementById('headerRow').value = hRow + 1;
+  document.getElementById('dataRow').value   = hRow + 2;
+  loadMapping(hRow);
+  document.getElementById('mappingPanel').classList.add('visible');
+  document.getElementById('convertBtn').disabled = false;
+}
+
+function loadMapping(hRow) {
+  srcHeaders = (rawData[hRow] || []).map(h => String(h).trim());
+  const idx = {};
+  srcHeaders.forEach((h, i) => idx[h] = i);
+
+  const grid = document.getElementById('mappingGrid');
+  grid.innerHTML = '';
+
+  OUTPUT_COLS.forEach(col => {
+    const div = document.createElement('div');
+    div.className = 'mapping-row';
+
+    let srcLabel, cls = '';
+    if (col.src === '__LAT__') {
+      srcLabel = 'calculada de Coord. Y'; cls = 'computed';
+    } else if (col.src === '__LON__') {
+      srcLabel = 'calculada de Coord. X'; cls = 'computed';
+    } else if (col.src === null) {
+      srcLabel = '— vacío'; cls = 'missing';
+    } else {
+      const found = col.src in idx;
+      srcLabel = found ? col.src : `✗ no encontrado`;
+      cls = found ? '' : 'missing';
+    }
+
+    div.innerHTML = `
+      <span class="map-target">${col.name}</span>
+      <span class="map-arrow">←</span>
+      <span class="map-source ${cls}">${srcLabel}</span>`;
+    grid.appendChild(div);
+  });
+}
+
+document.getElementById('reloadBtn').addEventListener('click', () => {
+  if (!fileLoaded) return;
+  loadMapping(parseInt(document.getElementById('headerRow').value) - 1);
+});
+
+// ── Conversion ────────────────────────────────────────────────────────────────
+document.getElementById('convertBtn').addEventListener('click', doConversion);
+
+function doConversion() {
+  const crsKey = document.getElementById('crsSelect').value;
+  proj4.defs('SRC', PROJ_DEFS[crsKey]);
+  const conv = proj4('SRC', WGS84);
+
+  const hRow = parseInt(document.getElementById('headerRow').value) - 1;
+  const dRow = parseInt(document.getElementById('dataRow').value)   - 1;
+
+  srcHeaders = (rawData[hRow] || []).map(h => String(h).trim());
+  const idx = {};
+  srcHeaders.forEach((h, i) => idx[h] = i);
+
+  // Accept both "Coord. X" and "Coord.X" variants
+  const xIdx = idx['Coord. X'] ?? idx['Coord.X'] ?? -1;
+  const yIdx = idx['Coord. Y'] ?? idx['Coord.Y'] ?? -1;
+
+  if (xIdx < 0 || yIdx < 0) {
+    showError('No se encontraron las columnas Coord. X / Coord. Y en la fila de cabecera indicada.');
+    return;
+  }
+
+  const dataRows = rawData.slice(dRow);
+  convertedRows = [];
+  let okCount = 0, errCount = 0;
+
+  document.getElementById('statsBar').classList.add('visible');
+  document.getElementById('statTotal').textContent = dataRows.length;
+
+  dataRows.forEach((row, ri) => {
+    const xRaw = parseFloat(String(row[xIdx]).replace(',', '.'));
+    const yRaw = parseFloat(String(row[yIdx]).replace(',', '.'));
+
+    let lat = '', lon = '', status = 'ok', errMsg = '';
+
+    if (isNaN(xRaw) || isNaN(yRaw)) {
+      status = 'error'; errMsg = 'coords inválidas'; errCount++;
+    } else {
+      try {
+        const [lo, la] = conv.forward([xRaw, yRaw]);
+        if (isNaN(la) || isNaN(lo) || Math.abs(la) > 90 || Math.abs(lo) > 180)
+          throw new Error('resultado fuera de rango');
+        lat = la.toFixed(7);
+        lon = lo.toFixed(7);
+        okCount++;
+      } catch(e) { status = 'error'; errMsg = e.message; errCount++; }
+    }
+
+    const out = OUTPUT_COLS.map(col => {
+      if (col.src === '__LAT__') return lat;
+      if (col.src === '__LON__') return lon;
+      if (col.src === null)      return '';
+      const ci = idx[col.src];
+      return ci !== undefined ? row[ci] : '';
+    });
+
+    convertedRows.push({ out, status, errMsg });
+
+    if (ri % 50 === 0 || ri === dataRows.length - 1) {
+      const pct = Math.round(((ri + 1) / dataRows.length) * 100);
+      document.getElementById('progressFill').style.width = pct + '%';
+      document.getElementById('progressTxt').textContent = `${ri + 1} / ${dataRows.length}`;
+      document.getElementById('statOk').textContent  = okCount;
+      document.getElementById('statErr').textContent = errCount;
+    }
+  });
+
+  renderTable();
+  document.getElementById('exportXlsxBtn').disabled = false;
+  document.getElementById('exportCsvBtn').disabled  = false;
+  document.getElementById('previewNote').textContent =
+    `${okCount} filas listas · ${errCount} errores`;
+  hideError();
+}
+
+// ── Table ─────────────────────────────────────────────────────────────────────
+function renderTable(filter = '') {
+  const fl = filter.toLowerCase();
+
+  document.getElementById('tableHead').innerHTML =
+    '<tr>' + OUTPUT_COLS.map(c => {
+      const isCoord = c.src === '__LAT__' || c.src === '__LON__';
+      return `<th class="${isCoord ? 'col-coord' : ''}">${c.name}</th>`;
+    }).join('') + '<th>Estado</th></tr>';
+
+  const filtered = convertedRows.filter(r =>
+    !fl || r.out.some(v => String(v).toLowerCase().includes(fl))
+  );
+
+  document.getElementById('tableBody').innerHTML = filtered.map(r => {
+    const cells = r.out.map((v, i) => {
+      const isCoord = OUTPUT_COLS[i].src === '__LAT__' || OUTPUT_COLS[i].src === '__LON__';
+      return `<td class="${isCoord ? 'coord' : ''}">${v}</td>`;
+    }).join('');
+    const tag = r.status === 'ok'
+      ? `<td><span class="tag-ok">✓</span></td>`
+      : `<td><span class="tag-err">✕ ${r.errMsg}</span></td>`;
+    return `<tr class="${r.status !== 'ok' ? 'row-err' : ''}">${cells}${tag}</tr>`;
+  }).join('');
+
+  document.getElementById('tableWrap').classList.add('visible');
+}
+
+document.getElementById('tableSearch').addEventListener('input', function() {
+  if (convertedRows.length) renderTable(this.value);
+});
+
+// ── Export ────────────────────────────────────────────────────────────────────
+document.getElementById('exportXlsxBtn').addEventListener('click', () => doExport('xlsx'));
+document.getElementById('exportCsvBtn').addEventListener('click',  () => doExport('csv'));
+
+function doExport(type) {
+  const header = OUTPUT_COLS.map(c => c.name);
+  const body   = convertedRows.map(r => r.out);
+  const ws     = XLSX.utils.aoa_to_sheet([header, ...body]);
+  const colWidths = header.map((h, ci) => ({
+    wch: Math.min(Math.max(h.length, ...body.map(r => String(r[ci] ?? '').length)) + 2, 40)
+  }));
+  ws['!cols'] = colWidths;
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Portales');
+  const base = fileName.replace(/\.[^.]+$/, '');
+  XLSX.writeFile(wb, `${base}_importacion.${type}`, type === 'csv' ? { bookType: 'csv' } : {});
+}
+
+// ── Reset ─────────────────────────────────────────────────────────────────────
+document.getElementById('resetBtn').addEventListener('click', () => {
+  rawData = []; srcHeaders = []; convertedRows = [];
+  fileName = ''; fileLoaded = false; fileInput.value = '';
+  ['mappingPanel','statsBar','tableWrap'].forEach(id =>
+    document.getElementById(id).classList.remove('visible'));
+  document.getElementById('convertBtn').disabled    = true;
+  document.getElementById('exportXlsxBtn').disabled = true;
+  document.getElementById('exportCsvBtn').disabled  = true;
+  document.getElementById('footerFile').textContent = 'Sin fichero cargado';
+  document.getElementById('progressFill').style.width = '0%';
+  document.getElementById('previewNote').textContent  = '';
+  hideError();
+});
+
+function showError(msg) {
+  const b = document.getElementById('errorBubble');
+  b.textContent = '⚠ ' + msg; b.classList.add('visible');
+}
+function hideError() {
+  document.getElementById('errorBubble').classList.remove('visible');
+}
+</script>
+</body>
+</html>
